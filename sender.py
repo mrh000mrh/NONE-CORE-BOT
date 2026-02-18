@@ -1,14 +1,14 @@
 import random
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
 class Sender:
     def __init__(self, config):
         self.config = config
         self.random_messages = [
             "آمار ارسال: کل {total} کانفیگ - ارسال در این بار: {sent} کانفیگ",
+            "لطفاً کانال و پست‌ها را برای دسترسی به اینترنت در زمان قطعی با دیگران به اشتراک بگذارید"
         ]
 
-    async def send_to_channel(self, context, configs, db):
+    async def send_to_channel(self, context, configs):
         sent = 0
         for cfg in configs:
             text = self.format_message(cfg)
@@ -38,14 +38,12 @@ class Sender:
         quality = "عالی" if ping.isdigit() and int(ping) <= 50 else "خوب" if ping.isdigit() and int(ping) <= 200 else "متوسط"
         link = cfg['link']
         config_type = cfg.get('type', 'VLESS')
-        remark = cfg.get('remark', 'NONEcore')
 
         return f"""
-NONEcore Config
-📍 {location} {short_loc} 📶 {ping}ms ({quality})
+کانفیگ رایگان {config_type} - لوکیشن {location} {short_loc}
+پینگ {quality}، بدون قطعی، مناسب وب‌گردی
 
 <tg-spoiler><code>{link}</code></tg-spoiler>
-ریمارک: @nonecorebot {short_loc}
 
 #{config_type} #فیلترشکن #کانفیگ #VPN #اینترنت_آزاد
 
