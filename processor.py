@@ -1,46 +1,44 @@
+from bs4 import BeautifulSoup
 import re
 
 def extract_from_html(html_content):
+    soup = BeautifulSoup(html_content, 'lxml')
     configs = []
 
-    # regex برای لینک کامل تا # یا انتها
-    link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|vlesss?|vmesss?|trojans?|shadowsocks|ssr|hy2?)://(.*?)(#|$)'
-    matches = re.findall(link_pattern, html_content, re.IGNORECASE | re.DOTALL)
+    text_elements = soup.find_all(string=True)
+    full_text = "\n".join(t.strip() for t in text_elements if t.strip() and len(t.strip()) > 5)
 
-    for proto, params, end in matches:
-        link = proto + '://' + params + end
-        link = link.strip()
+    link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|vlesss?|vmesss?|trojans?|shadowsocks|ssr|hy2?)://[^\s<>"\']+'
+    links = re.findall(link_pattern, full_text, re.IGNORECASE)
+
+    for raw_link in links:
+        link = raw_link.strip()
         if len(link) < 30:
             continue
 
         location = "Unknown"
         ping = "Unknown"
-        remark = "@nonecorebot"
 
-        # استخراج لوکیشن از متن
-        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server|منطقه):?\s*([A-Za-z\s\-،🇦-🇿]{2,30})', html_content, re.IGNORECASE | re.UNICODE)
+        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server):?\s*([A-Za-z\s\-،]{2,30})', full_text, re.IGNORECASE)
         if loc_match:
             location = loc_match.group(2).strip().replace('،', '')
 
-        # استخراج پینگ
-        ping_match = re.search(r'(پینگ|ping|latency):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', html_content, re.IGNORECASE)
+        ping_match = re.search(r'(پینگ|ping):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', full_text, re.IGNORECASE)
         if ping_match:
             ping = ping_match.group(2)
 
-        # استخراج ریمارک از # انتها
-        remark_match = re.search(r'#([^\s]+)', link)
-        if remark_match:
-            remark = remark_match.group(1).strip()
+        uuid = re.search(r'uuid=([^&]+)', link)
+        uuid = uuid.group(1) if uuid else link.split("#")[0] if "#" in link else link
+
+        config_type = link.split("://")[0].upper()
 
         configs.append({
-            "uuid": link.split("@")[0] if "@" in link else link.split("://")[1],
+            "uuid": uuid,
             "link": link,
             "location": location,
             "ping": ping,
-            "type": proto.upper(),
-            "remark": remark
+            "type": config_type
         })
 
-    # حذف تکراری
     unique = {c['link']: c for c in configs}
     return list(unique.values())
