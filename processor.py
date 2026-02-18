@@ -3,23 +3,42 @@ import re
 def extract_from_html(html_content):
     configs = []
 
-    # تمام متن رو بدون BeautifulSoup استخراج می‌کنیم (ساده‌تر و بدون وابستگی lxml)
-    full_text = html_content
+    # regex برای لینک کامل تا # یا انتها
+    link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|vlesss?|vmesss?|trojans?|shadowsocks|ssr|hy2?)://(.*?)(#|$)'
+    matches = re.findall(link_pattern, html_content, re.IGNORECASE | re.DOTALL)
 
-    # regex قوی برای هر نوع لینک کانفیگ
-    pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|hy2?|shadowsocks)://[^\s<>"\']+'
-    links = re.findall(pattern, full_text, re.IGNORECASE | re.DOTALL)
-
-    for raw_link in links:
-        link = raw_link.strip()
+    for proto, params, end in matches:
+        link = proto + '://' + params + end
+        link = link.strip()
         if len(link) < 30:
             continue
 
+        location = "Unknown"
+        ping = "Unknown"
+        remark = "@nonecorebot"
+
+        # استخراج لوکیشن از متن
+        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server|منطقه):?\s*([A-Za-z\s\-،🇦-🇿]{2,30})', html_content, re.IGNORECASE | re.UNICODE)
+        if loc_match:
+            location = loc_match.group(2).strip().replace('،', '')
+
+        # استخراج پینگ
+        ping_match = re.search(r'(پینگ|ping|latency):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', html_content, re.IGNORECASE)
+        if ping_match:
+            ping = ping_match.group(2)
+
+        # استخراج ریمارک از # انتها
+        remark_match = re.search(r'#([^\s]+)', link)
+        if remark_match:
+            remark = remark_match.group(1).strip()
+
         configs.append({
+            "uuid": link.split("@")[0] if "@" in link else link.split("://")[1],
             "link": link,
-            "type": link.split("://")[0].upper(),
-            "location": "Unknown",
-            "ping": "Unknown"
+            "location": location,
+            "ping": ping,
+            "type": proto.upper(),
+            "remark": remark
         })
 
     # حذف تکراری
