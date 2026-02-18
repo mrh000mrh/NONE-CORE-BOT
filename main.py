@@ -41,12 +41,12 @@ class NonecoreBot:
         if user_id != self.config.ADMIN_ID:
             return
 
-        if text == "📤 آپلود HTML یا متن لینک":
-            await update.message.reply_text("لطفاً فایل HTML یا متن لینک‌ها رو ارسال کنید.")
+        if text == "📤 آپلود HTML":
+            await update.message.reply_text("لطفاً فایل HTML ارسال کنید.")
             self.user_states[user_id] = {"state": "waiting_file"}
             return
 
-        if text == "📤 ارسال دستی":
+        if text == "📤 ارسال از صف":
             if not self.pending_configs:
                 await update.message.reply_text("هیچ کانفیگی در صف باقی نمانده است.")
                 return
@@ -72,6 +72,10 @@ class NonecoreBot:
         if text == "📤 ارسال پیام به کانال":
             await update.message.reply_text("متن، عکس یا فایل بفرستید – مستقیم به کانال ارسال می‌شه.")
             self.user_states[user_id] = {"state": "sending_to_channel"}
+            return
+
+        if text == "بازگشت به منو":
+            await self.start(update, context)
             return
 
         if self.user_states.get(user_id, {}).get("state") == "sending_to_channel":
@@ -129,7 +133,7 @@ class NonecoreBot:
                 self.user_states[user_id] = {"configs": all_configs, "state": "ask_count"}
                 await update.message.reply_text(f"{len(all_configs)} کانفیگ آماده (قبلی + جدید).\n\nچند تا ارسال کنم؟ (عدد یا 'همه')")
             else:
-                await update.message.reply_text("فایل HTML یا متن لینک بفرستید.")
+                await update.message.reply_text("فایل HTML بفرستید.")
             return
 
         if self.user_states.get(user_id, {}).get("state") in ["ask_count", "ask_count_from_pending"]:
@@ -150,10 +154,10 @@ class NonecoreBot:
             self.pending_configs = self.user_states[user_id]["configs"][count:]
 
             try:
-                sent_count = await self.sender.send_to_channel(context, to_send, self.db)
+                sent_count = await self.sender.send_to_channel(context, to_send)
                 await self.db.increment_configs_sent(sent_count)
                 for cfg in to_send:
-                    await self.db.add_config(cfg['uuid'], cfg['link'], cfg.get('location', 'Unknown'), cfg.get('ping', 'Unknown'), cfg.get('remark', 'NONEcore'), cfg.get('post_date', date.today().strftime("%Y-%m-%d")))
+                    await self.db.add_config(cfg['uuid'], cfg['link'], cfg.get('location', 'Unknown'), cfg.get('ping', 'Unknown'))
             except TimedOut:
                 await update.message.reply_text("تلگرام کند بود، دوباره امتحان کنید.")
                 return
@@ -181,7 +185,6 @@ class NonecoreBot:
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.db.init())
-        loop.run_until_complete(self.db.cleanup_old_configs())
 
         logger.info("ربات استارت شد...")
         self.application.run_polling(drop_pending_updates=True)
