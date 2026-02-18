@@ -9,3 +9,5 @@ class Config:
     BRAND_NAME = os.getenv("BRAND_NAME", "NONEcore")
     CHANNELS = os.getenv("CHANNELS", "@nonecorebot").split(",")
     DATABASE_PATH = os.getenv("DATABASE_PATH", "database.db")
+
+    ALLOWED_CLIENTS = ["v2rayNG", "Streisand", "Hiddify"]
