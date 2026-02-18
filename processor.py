@@ -1,60 +1,44 @@
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime
 
 def extract_from_html(html_content):
-    soup = BeautifulSoup(html_content, 'lxml')
+    soup = BeautifulSoup(html_content, 'html.parser')  # بدون نیاز به lxml (همیشه کار می‌کنه)
     configs = []
 
-    full_text = soup.get_text(separator='\n', strip=True)
+    # روش ۱: لینک‌های داخل <pre> یا <code> (رایج‌ترین در اکسپورت تلگرام)
+    for tag in soup.find_all(['pre', 'code']):
+        text = tag.get_text(strip=True)
+        if text and re.match(r'^(vless|vmess|trojan|ss|ssr|tuic|hy2?)://', text, re.IGNORECASE):
+            configs.append(text)
 
-    # پیدا کردن لینک‌ها
+    # روش ۲: تمام متن صفحه (اگر لینک خارج از تگ باشه)
+    full_text = soup.get_text(separator='\n', strip=True)
     link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|vlesss?|vmesss?|trojans?|shadowsocks|ssr|hy2?)://[^\s<>"\']+'
     links = re.findall(link_pattern, full_text, re.IGNORECASE)
+    configs.extend(links)
 
-    # پیدا کردن تاریخ پست (اگر در متن بود)
-    date_pattern = r'(\d{4}/\d{2}/\d{2}|\d{4}-\d{2}-\d{2})'
-    post_date_match = re.search(date_pattern, full_text)
-    post_date = post_date_match.group(1) if post_date_match else datetime.now().strftime("%Y-%m-%d")
+    # روش ۳: لینک‌های داخل <a href> (اگر کانال لینک رو لینک کرده باشه)
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        if re.match(r'^(vless|vmess|trojan|ss|ssr|tuic|hy2?)://', href, re.IGNORECASE):
+            configs.append(href)
 
-    for raw_link in links:
-        link = raw_link.strip()
-        if len(link) < 30:
-            continue
+    # حذف تکراری‌ها و فیلتر لینک‌های کوتاه
+    unique_links = set()
+    for link in configs:
+        link = link.strip()
+        if len(link) > 30 and re.match(r'^(vless|vmess|trojan|ss|ssr|tuic|hy2?)://', link, re.IGNORECASE):
+            unique_links.add(link)
 
-        location = "Unknown"
-        ping = "Unknown"
-        remark = "NONEcore"
-
-        # لوکیشن
-        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server|منطقه):?\s*([A-Za-z\s\-،🇦-🇿]{2,30})', full_text, re.IGNORECASE | re.UNICODE)
-        if loc_match:
-            location = loc_match.group(2).strip().replace('،', '')
-
-        # پینگ
-        ping_match = re.search(r'(پینگ|ping|latency):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', full_text, re.IGNORECASE)
-        if ping_match:
-            ping = ping_match.group(2)
-
-        # ریمارک (از ps یا # یا متن نزدیک لینک)
-        remark_match = re.search(r'ps=([^&]+)', link) or re.search(r'#([^\s]+)', link)
-        if remark_match:
-            remark = remark_match.group(1).strip()
-
-        uuid = re.search(r'uuid=([^&]+)', link) or re.search(r'#([^\s]+)', link)
-        uuid = uuid.group(1) if uuid else link.split("#")[0] if "#" in link else link
-
+    # تبدیل به لیست دیکت
+    final_configs = []
+    for link in unique_links:
         config_type = link.split("://")[0].upper()
-
-        configs.append({
-            "uuid": uuid,
+        final_configs.append({
             "link": link,
-            "location": location,
-            "ping": ping,
-            "remark": remark,
             "type": config_type,
-            "post_date": post_date
+            "location": "Unknown",
+            "ping": "Unknown"
         })
 
-    unique = {c['link']: c for c in configs}
-    return list(unique.values())
+    return final_configs
