@@ -108,30 +108,30 @@ class NonecoreBot:
                     await update.message.reply_text("دانلود فایل شکست خورد.")
                     return
 
-                configs = extract_from_html(html_content)
-                logger.info(f"استخراج شد: {len(configs)} کانفیگ")
+                    configs = extract_from_html(html_content)
+                    logger.info(f"استخراج شد: {len(configs)} کانفیگ")
 
-                if not configs:
-                    await update.message.reply_text("هیچ کانفیگی پیدا نشد.")
-                    self.user_states.pop(user_id, None)
-                    return
+                    if not configs:
+                        await update.message.reply_text("هیچ کانفیگی پیدا نشد.")
+                        self.user_states.pop(user_id, None)
+                        return
 
-                configs = [c for c in configs if 'link' in c]
-                existing = await self.db.get_existing_links()
-                unique_new = [c for c in configs if c['link'] not in existing]
+                    configs = [c for c in configs if 'link' in c]
+                    existing = await self.db.get_existing_links()
+                    unique_new = [c for c in configs if c['link'] not in existing]
 
-                all_configs = self.pending_configs + unique_new
-                random.shuffle(all_configs)
+                    all_configs = self.pending_configs + unique_new
+                    random.shuffle(all_configs)
 
-                self.pending_configs = all_configs
+                    self.pending_configs = all_configs
 
-                if not all_configs:
-                    await update.message.reply_text("هیچ کانفیگ جدیدی نبود.")
-                    self.user_states.pop(user_id, None)
-                    return
+                    if not all_configs:
+                        await update.message.reply_text("هیچ کانفیگ جدیدی نبود.")
+                        self.user_states.pop(user_id, None)
+                        return
 
-                self.user_states[user_id] = {"configs": all_configs, "state": "ask_count"}
-                await update.message.reply_text(f"{len(all_configs)} کانفیگ آماده (قبلی + جدید).\n\nچند تا ارسال کنم؟ (عدد یا 'همه')")
+                    self.user_states[user_id] = {"configs": all_configs, "state": "ask_count"}
+                    await update.message.reply_text(f"{len(all_configs)} کانفیگ آماده (قبلی + جدید).\n\nچند تا ارسال کنم؟ (عدد یا 'همه')")
             else:
                 await update.message.reply_text("فایل HTML بفرستید.")
             return
@@ -171,24 +171,20 @@ class NonecoreBot:
             self.user_states.pop(user_id, None)
             return
 
-        await update.message.reply_text("دستور نامعتبر.")
+            await update.message.reply_text("دستور نامعتبر.")
 
-    def run(self):
-        if not self.config.BOT_TOKEN:
-            logger.error("BOT_TOKEN تعریف نشده!")
-            return
+ def run(self):
+     if not self.config.BOT_TOKEN:
+         logger.error("BOT_TOKEN تعریف نشده!")
+         return
 
-        self.application = Application.builder().token(self.config.BOT_TOKEN).build()
+     self.application = Application.builder().token(self.config.BOT_TOKEN).build()
 
-        self.application.add_handler(CommandHandler("start", self.start))
-        self.application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, self.handle_message))
+     self.application.add_handler(CommandHandler("start", self.start))
+     self.application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, self.handle_message))
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.db.init())
+     loop = asyncio.get_event_loop()
+     loop.run_until_complete(self.db.init())
 
-        logger.info("ربات استارت شد...")
-        self.application.run_polling(drop_pending_updates=True)
-
-if __name__ == '__main__':
-    bot = NonecoreBot()
-    asyncio.run(bot.run())
+     logger.info("ربات استارت شد...")
+     self.application.run_polling(drop_pending_updates=True)
