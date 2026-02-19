@@ -1,5 +1,5 @@
 import aiosqlite
-from datetime import date
+from datetime import date, datetime, timedelta
 
 class Database:
     def __init__(self, db_path):
@@ -13,6 +13,8 @@ class Database:
                     link TEXT UNIQUE,
                     location TEXT,
                     ping TEXT,
+                    remark TEXT,
+                    post_date TEXT,
                     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -25,12 +27,23 @@ class Database:
             """)
             await db.commit()
 
-    async def add_config(self, uuid, link, location, ping):
+    async def add_config(self, uuid, link, location, ping, remark, post_date):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT OR IGNORE INTO configs (uuid, link, location, ping) VALUES (?, ?, ?, ?)",
-                (uuid, link, location, ping)
+                "INSERT OR IGNORE INTO configs (uuid, link, location, ping, remark, post_date) VALUES (?, ?, ?, ?, ?, ?)",
+                (uuid, link, location, ping, remark, post_date)
             )
+            await db.commit()
+
+    async def cleanup_old_configs(self, days=10):
+        threshold = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM configs WHERE post_date < ?", (threshold,))
+            await db.commit()
+
+    async def reset_duplicates(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM configs")
             await db.commit()
 
     async def get_existing_links(self):
@@ -73,12 +86,3 @@ class Database:
                 ON CONFLICT(date) DO UPDATE SET members_added = members_added + excluded.members_added
             """, (today, count))
             await db.commit()
-
-    async def get_last_configs(self, limit=10):
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
-                "SELECT link FROM configs ORDER BY added_at DESC LIMIT ?",
-                (limit,)
-            )
-            rows = await cursor.fetchall()
-            return [{"link": row[0]} for row in rows]
