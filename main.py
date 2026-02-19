@@ -41,12 +41,12 @@ class NonecoreBot:
         if user_id != self.config.ADMIN_ID:
             return
 
-        if text == "📤 آپلود HTML":
-            await update.message.reply_text("لطفاً فایل HTML ارسال کنید.")
+        if text == "📤 آپلود HTML یا متن لینک":
+            await update.message.reply_text("لطفاً فایل HTML یا متن لینک‌ها رو ارسال کنید.")
             self.user_states[user_id] = {"state": "waiting_file"}
             return
 
-        if text == "📤 ارسال از صف":
+        if text == "📤 ارسال دستی":
             if not self.pending_configs:
                 await update.message.reply_text("هیچ کانفیگی در صف باقی نمانده است.")
                 return
@@ -74,8 +74,9 @@ class NonecoreBot:
             self.user_states[user_id] = {"state": "sending_to_channel"}
             return
 
-        if text == "بازگشت به منو":
-            await self.start(update, context)
+        if text == "🗑️ پاک کردن تکراری‌ها":
+            await self.db.reset_duplicates()
+            await update.message.reply_text("دیتابیس تکراری‌ها پاک شد. حالا می‌تونی دوباره آپلود کنی.")
             return
 
         if self.user_states.get(user_id, {}).get("state") == "sending_to_channel":
@@ -97,43 +98,48 @@ class NonecoreBot:
             return
 
         if self.user_states.get(user_id, {}).get("state") == "waiting_file":
+            content = ""
             if update.message.document and update.message.document.file_name.lower().endswith('.html'):
                 await update.message.reply_text("در حال استخراج...")
                 try:
                     file = await update.message.document.get_file()
                     html_bytes = await file.download_as_bytearray()
-                    html_content = html_bytes.decode('utf-8', errors='ignore')
+                    content = html_bytes.decode('utf-8', errors='ignore')
                 except Exception as e:
                     logger.error(f"دانلود فایل شکست خورد: {e}")
                     await update.message.reply_text("دانلود فایل شکست خورد.")
                     return
-
-                configs = extract_from_html(html_content)
-                logger.info(f"استخراج شد: {len(configs)} کانفیگ")
-
-                if not configs:
-                    await update.message.reply_text("هیچ کانفیگی پیدا نشد.")
-                    self.user_states.pop(user_id, None)
-                    return
-
-                configs = [c for c in configs if 'link' in c]
-                existing = await self.db.get_existing_links()
-                unique_new = [c for c in configs if c['link'] not in existing]
-
-                all_configs = self.pending_configs + unique_new
-                random.shuffle(all_configs)
-
-                self.pending_configs = all_configs
-
-                if not all_configs:
-                    await update.message.reply_text("هیچ کانفیگ جدیدی نبود.")
-                    self.user_states.pop(user_id, None)
-                    return
-
-                self.user_states[user_id] = {"configs": all_configs, "state": "ask_count"}
-                await update.message.reply_text(f"{len(all_configs)} کانفیگ آماده (قبلی + جدید).\n\nچند تا ارسال کنم؟ (عدد یا 'همه')")
+            elif update.message.text:
+                content = update.message.text
+                await update.message.reply_text("در حال استخراج متن...")
             else:
-                await update.message.reply_text("فایل HTML بفرستید.")
+                await update.message.reply_text("فایل HTML یا متن لینک بفرستید.")
+                return
+
+            configs = extract_from_html(content)
+            logger.info(f"استخراج شد: {len(configs)} کانفیگ")
+
+            if not configs:
+                await update.message.reply_text("هیچ کانفیگی پیدا نشد.")
+                self.user_states.pop(user_id, None)
+                return
+
+            configs = [c for c in configs if 'link' in c]
+            existing = await self.db.get_existing_links()
+            unique_new = [c for c in configs if c['link'] not in existing]
+
+            all_configs = self.pending_configs + unique_new
+            random.shuffle(all_configs)
+
+            self.pending_configs = all_configs
+
+            if not all_configs:
+                await update.message.reply_text("هیچ کانفیگ جدیدی نبود.")
+                self.user_states.pop(user_id, None)
+                return
+
+            self.user_states[user_id] = {"configs": all_configs, "state": "ask_count"}
+            await update.message.reply_text(f"{len(all_configs)} کانفیگ آماده (قبلی + جدید).\n\nچند تا ارسال کنم؟ (عدد یا 'همه')")
             return
 
         if self.user_states.get(user_id, {}).get("state") in ["ask_count", "ask_count_from_pending"]:
@@ -157,7 +163,7 @@ class NonecoreBot:
                 sent_count = await self.sender.send_to_channel(context, to_send)
                 await self.db.increment_configs_sent(sent_count)
                 for cfg in to_send:
-                    await self.db.add_config(cfg['uuid'], cfg['link'], cfg.get('location', 'Unknown'), cfg.get('ping', 'Unknown'))
+                    await self.db.add_config(cfg['uuid'], cfg['link'], cfg.get('location', 'Unknown'), cfg.get('ping', 'Unknown'), cfg.get('remark', 'NONEcore'), cfg.get('post_date', date.today().strftime("%Y-%m-%d")))
             except TimedOut:
                 await update.message.reply_text("تلگرام کند بود، دوباره امتحان کنید.")
                 return
@@ -185,6 +191,7 @@ class NonecoreBot:
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.db.init())
+        loop.run_until_complete(self.db.cleanup_old_configs())
 
         logger.info("ربات استارت شد...")
         self.application.run_polling(drop_pending_updates=True)
