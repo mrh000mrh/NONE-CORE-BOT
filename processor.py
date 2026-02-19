@@ -1,43 +1,50 @@
 from bs4 import BeautifulSoup
 import re
+from datetime import datetime
 
 def extract_from_html(html_content):
-    soup = BeautifulSoup(html_content, 'lxml')
+    soup = BeautifulSoup(html_content, 'html.parser')
     configs = []
 
-    text_elements = soup.find_all(string=True)
-    full_text = "\n".join(t.strip() for t in text_elements if t.strip() and len(t.strip()) > 5)
+    full_text = soup.get_text(separator='\n', strip=True)
 
-    link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|vlesss?|vmesss?|trojans?|shadowsocks|ssr|hy2?)://[^\s<>"\']+'
-    links = re.findall(link_pattern, full_text, re.IGNORECASE)
+    link_pattern = r'(vless|vmess|trojan|ss|ssr|tuic|hysteria2?|hy2?|shadowsocks)://[^\s<>"\']+(?:#[^\s<>"\']*)?'
+    matches = re.findall(link_pattern, full_text, re.IGNORECASE | re.DOTALL)
 
-    for raw_link in links:
-        link = raw_link.strip()
+    date_match = re.search(r'(\d{4}/\d{2}/\d{2}|\d{4}-\d{2}-\d{2})', full_text)
+    post_date = date_match.group(1) if date_match else datetime.now().strftime("%Y-%m-%d")
+
+    for match in matches:
+        link = match.strip()
         if len(link) < 30:
             continue
 
         location = "Unknown"
         ping = "Unknown"
+        remark = "NONEcore"
 
-        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server):?\s*([A-Za-z\s\-،]{2,30})', full_text, re.IGNORECASE)
+        loc_match = re.search(r'(لوکیشن|location|country|کشور|سرور|server|منطقه):?\s*([A-Za-z\s\-،🇦-🇿]{2,30})', full_text, re.IGNORECASE | re.UNICODE)
         if loc_match:
             location = loc_match.group(2).strip().replace('،', '')
 
-        ping_match = re.search(r'(پینگ|ping):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', full_text, re.IGNORECASE)
+        ping_match = re.search(r'(پینگ|ping|latency):?\s*(\d+)\s*(ms|میلی‌ثانیه)?', full_text, re.IGNORECASE)
         if ping_match:
             ping = ping_match.group(2)
 
-        uuid = re.search(r'uuid=([^&]+)', link)
-        uuid = uuid.group(1) if uuid else link.split("#")[0] if "#" in link else link
+        remark_match = re.search(r'#([^\s]+)', link)
+        if remark_match:
+            remark = remark_match.group(1).strip()
 
         config_type = link.split("://")[0].upper()
 
         configs.append({
-            "uuid": uuid,
+            "uuid": link.split("@")[0] if "@" in link else link.split("://")[1].split(":")[0],
             "link": link,
             "location": location,
             "ping": ping,
-            "type": config_type
+            "remark": remark,
+            "type": config_type,
+            "post_date": post_date
         })
 
     unique = {c['link']: c for c in configs}
